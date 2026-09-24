@@ -8,8 +8,10 @@ import { applicationPresentation } from './application-view.js';
 const state = {
   token: sessionStorage.getItem('placement-token'),
   applications: [],
+  resumes: [],
   mode: 'login',
   editingApplicationId: null,
+  editingResumeId: null,
 };
 const stages = ['SAVED', 'APPLIED', 'ASSESSMENT', 'INTERVIEW', 'OFFER'];
 const byId = (id) => document.getElementById(id);
@@ -76,6 +78,99 @@ function formControl(name) {
   return byId('application-form').elements.namedItem(name);
 }
 
+function resumeControl(name) {
+  return byId('resume-form').elements.namedItem(name);
+}
+
+function populateResumeSelect(selected = '') {
+  const select = byId('application-resume');
+  select.replaceChildren();
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = 'No resume selected';
+  select.append(empty);
+  for (const resume of state.resumes) {
+    const option = document.createElement('option');
+    option.value = resume.id;
+    option.textContent = resume.title;
+    select.append(option);
+  }
+  select.value = selected || '';
+}
+
+function renderResumeEditorPreview() {
+  const title = resumeControl('title').value.trim();
+  const content = resumeControl('content').value.trim();
+  byId('resume-preview-title').textContent = title || 'Untitled resume';
+  byId('resume-preview-content').textContent = content || 'Start typing to preview your resume.';
+}
+
+function closeResumeDialog() {
+  state.editingResumeId = null;
+  byId('resume-form-message').textContent = '';
+  byId('resume-dialog').close();
+}
+
+function openCreateResumeDialog() {
+  state.editingResumeId = null;
+  byId('resume-form').reset();
+  byId('resume-dialog-eyebrow').textContent = 'NEW RESUME';
+  byId('resume-dialog-title').textContent = 'Create resume';
+  byId('resume-submit').textContent = 'Save resume';
+  renderResumeEditorPreview();
+  byId('resume-dialog').showModal();
+}
+
+function openEditResumeDialog(resume) {
+  state.editingResumeId = resume.id;
+  resumeControl('title').value = resume.title;
+  resumeControl('content').value = resume.content;
+  byId('resume-dialog-eyebrow').textContent = 'EDIT RESUME';
+  byId('resume-dialog-title').textContent = 'Edit resume';
+  byId('resume-submit').textContent = 'Save changes';
+  renderResumeEditorPreview();
+  byId('resume-dialog').showModal();
+}
+
+function renderResumes() {
+  const list = byId('resume-list');
+  list.replaceChildren();
+  if (state.resumes.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = 'No resume versions yet.';
+    list.append(empty);
+    populateResumeSelect();
+    return;
+  }
+  for (const resume of state.resumes) {
+    const card = byId('resume-template').content.firstElementChild.cloneNode(true);
+    card.querySelector('.resume-title').textContent = resume.title;
+    card.querySelector('.resume-content').textContent = resume.content;
+    card.querySelector('.resume-edit-button').addEventListener('click', () => openEditResumeDialog(resume));
+    card.querySelector('.resume-delete-button').addEventListener('click', () => removeResume(resume.id));
+    list.append(card);
+  }
+  populateResumeSelect();
+}
+
+async function loadResumes() {
+  const { resumes } = await api('/api/resumes');
+  state.resumes = resumes;
+  renderResumes();
+}
+
+async function removeResume(id) {
+  if (!window.confirm('Delete this resume version?')) return;
+  try {
+    await api(`/api/resumes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await loadResumes();
+    await loadApplications();
+  } catch (error) {
+    byId('resume-form-message').textContent = error.message;
+  }
+}
+
 function closeApplicationDialog() {
   state.editingApplicationId = null;
   byId('application-form-message').textContent = '';
@@ -85,6 +180,7 @@ function closeApplicationDialog() {
 function openCreateDialog() {
   state.editingApplicationId = null;
   byId('application-form').reset();
+  populateResumeSelect('');
   byId('application-form-message').textContent = '';
   byId('application-dialog-eyebrow').textContent = 'NEW OPPORTUNITY';
   byId('application-dialog-title').textContent = 'Add application';
@@ -94,6 +190,7 @@ function openCreateDialog() {
 
 function openEditDialog(application) {
   state.editingApplicationId = application.id;
+  populateResumeSelect(application.resumeId);
   const values = {
     company: application.company,
     role: application.role,
@@ -102,6 +199,7 @@ function openEditDialog(application) {
     deadline: application.deadline,
     followUpDate: application.followUpDate,
     notes: application.notes,
+    resumeId: application.resumeId ?? '',
     stageAppliedDate: application.stageDates?.APPLIED ?? '',
     stageAssessmentDate: application.stageDates?.ASSESSMENT ?? '',
     stageInterviewDate: application.stageDates?.INTERVIEW ?? '',
@@ -131,6 +229,8 @@ function renderApplications() {
     const presentation = applicationPresentation(application, new Date().toISOString().slice(0, 10));
     card.querySelector('.application-role').textContent = application.role;
     card.querySelector('.application-company').textContent = application.company;
+    const selectedResume = state.resumes.find((resume) => resume.id === application.resumeId);
+    card.querySelector('.application-resume').textContent = selectedResume?.title || 'Not selected';
     card.querySelector('.application-location').textContent = application.location || 'Remote / unspecified';
     renderDate(card.querySelector('.application-deadline'), presentation.deadline);
     renderDate(card.querySelector('.application-followup'), presentation.followUpDate);
@@ -239,6 +339,7 @@ byId('auth-form').addEventListener('submit', async (event) => {
     state.token = token;
     sessionStorage.setItem('placement-token', token);
     setAuthenticated(true);
+    await loadResumes();
     await Promise.all([loadApplications(), loadReminders(true)]);
   } catch (error) {
     byId('auth-message').textContent = error.message;
@@ -248,10 +349,35 @@ byId('auth-form').addEventListener('submit', async (event) => {
 byId('logout-button').addEventListener('click', () => {
   state.token = null;
   state.applications = [];
+  state.resumes = [];
   sessionStorage.removeItem('placement-token');
   setAuthenticated(false);
 });
 byId('new-application-button').addEventListener('click', openCreateDialog);
+byId('new-resume-button').addEventListener('click', openCreateResumeDialog);
+byId('close-resume-dialog').addEventListener('click', closeResumeDialog);
+byId('cancel-resume-dialog').addEventListener('click', closeResumeDialog);
+resumeControl('title').addEventListener('input', renderResumeEditorPreview);
+resumeControl('content').addEventListener('input', renderResumeEditorPreview);
+byId('resume-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const values = Object.fromEntries(new FormData(form));
+  const editingId = state.editingResumeId;
+  try {
+    const path = editingId ? `/api/resumes/${encodeURIComponent(editingId)}` : '/api/resumes';
+    await api(path, {
+      method: editingId ? 'PATCH' : 'POST',
+      body: JSON.stringify({ title: values.title, content: values.content }),
+    });
+    closeResumeDialog();
+    form.reset();
+    await loadResumes();
+    await loadApplications();
+  } catch (error) {
+    byId('resume-form-message').textContent = error.message;
+  }
+});
 byId('close-dialog').addEventListener('click', closeApplicationDialog);
 byId('cancel-dialog').addEventListener('click', closeApplicationDialog);
 byId('application-form').addEventListener('submit', async (event) => {
@@ -286,8 +412,13 @@ byId('status-filter').addEventListener('change', loadApplications);
 byId('generate-reminders').addEventListener('click', () => loadReminders(true));
 
 setAuthenticated(Boolean(state.token));
-if (state.token) Promise.all([loadApplications(), loadReminders(true)]).catch(() => {
-  sessionStorage.removeItem('placement-token');
-  state.token = null;
-  setAuthenticated(false);
-});
+if (state.token) {
+  (async () => {
+    await loadResumes();
+    await Promise.all([loadApplications(), loadReminders(true)]);
+  })().catch(() => {
+    sessionStorage.removeItem('placement-token');
+    state.token = null;
+    setAuthenticated(false);
+  });
+}

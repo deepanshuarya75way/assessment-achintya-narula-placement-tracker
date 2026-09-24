@@ -6,6 +6,7 @@ import { createApplication, applicationStatuses, updateApplication, type Applica
 import { hashPassword, signToken, verifyPassword, verifyToken, type TokenClaims } from '../domain/auth.ts';
 import { buildDueReminders } from '../domain/reminders.ts';
 import { JsonStore } from '../store/json-store.ts';
+import { createResume, updateResume } from '../domain/resume.ts';
 
 interface ApiOptions {
   store: JsonStore;
@@ -168,6 +169,56 @@ export function createApiServer(options: ApiOptions): Server {
 
       const claims = bearer(request, options.jwtSecret, now());
 
+      if (method === 'GET' && url.pathname === '/api/resumes') {
+        const resumes = await options.store.listResumes(claims.sub);
+        json(response, 200, { resumes });
+        return;
+      }
+
+      if (method === 'POST' && url.pathname === '/api/resumes') {
+        const body = await readJson(request);
+        let resume;
+        try {
+          resume = createResume(body, claims.sub, now());
+        } catch (error) {
+          throw new HttpError(400, 'VALIDATION_ERROR', (error as Error).message);
+        }
+        await options.store.addResume(resume);
+        json(response, 201, { resume });
+        return;
+      }
+
+      const resumeMatch = url.pathname.match(/^\/api\/resumes\/([^/]+)$/);
+      if (resumeMatch) {
+        const id = decodeURIComponent(resumeMatch[1]);
+        const existing = await options.store.getResume(claims.sub, id);
+        if (!existing) throw new HttpError(404, 'NOT_FOUND', 'Resume not found');
+
+        if (method === 'GET') {
+          json(response, 200, { resume: existing });
+          return;
+        }
+
+        if (method === 'PATCH') {
+          const body = await readJson(request);
+          let resume;
+          try {
+            resume = updateResume(existing, body, now());
+          } catch (error) {
+            throw new HttpError(400, 'VALIDATION_ERROR', (error as Error).message);
+          }
+          await options.store.replaceResume(claims.sub, resume);
+          json(response, 200, { resume });
+          return;
+        }
+
+        if (method === 'DELETE') {
+          await options.store.deleteResume(claims.sub, id);
+          json(response, 204);
+          return;
+        }
+      }
+
       if (method === 'GET' && url.pathname === '/api/applications') {
         const rawStatus = url.searchParams.get('status');
         if (rawStatus && !applicationStatuses.includes(rawStatus as ApplicationStatus)) {
@@ -183,6 +234,10 @@ export function createApiServer(options: ApiOptions): Server {
 
       if (method === 'POST' && url.pathname === '/api/applications') {
         const body = await readJson(request);
+        if (typeof body.resumeId === 'string' && body.resumeId.trim() !== '') {
+          const resume = await options.store.getResume(claims.sub, body.resumeId.trim());
+          if (!resume) throw new HttpError(404, 'NOT_FOUND', 'Resume not found');
+        }
         let application;
         try {
           application = createApplication(body, claims.sub, now());
@@ -227,6 +282,10 @@ export function createApiServer(options: ApiOptions): Server {
         }
         if (method === 'PATCH') {
           const body = await readJson(request);
+        if (typeof body.resumeId === 'string' && body.resumeId.trim() !== '') {
+          const resume = await options.store.getResume(claims.sub, body.resumeId.trim());
+          if (!resume) throw new HttpError(404, 'NOT_FOUND', 'Resume not found');
+        }
           let application;
           try {
             application = updateApplication(existing, body, now());

@@ -28,6 +28,7 @@ export interface JobApplication {
   deadline: string;
   followUpDate: string;
   notes: string;
+  resumeId?: string;
   stageDates: StageDates;
   status: ApplicationStatus;
   createdAt: string;
@@ -42,6 +43,7 @@ export interface ApplicationInput {
   deadline?: unknown;
   followUpDate?: unknown;
   notes?: unknown;
+  resumeId? : unknown;
   stageDates?: unknown;
 }
 
@@ -124,6 +126,7 @@ function normalizeFields(input: ApplicationInput, existingStageDates = emptyStag
     deadline: validDate(input.deadline, 'Deadline'),
     followUpDate: validDate(input.followUpDate, 'Follow-up date'),
     notes: optionalText(input.notes),
+    ...(input.resumeId !== undefined ? { resumeId: optionalText(input.resumeId) } :{}),
     stageDates: validStageDates(input.stageDates, existingStageDates),
   };
 }
@@ -131,6 +134,7 @@ function normalizeFields(input: ApplicationInput, existingStageDates = emptyStag
 export function normalizeStoredApplication(value: JobApplication): JobApplication {
   return {
     ...value,
+    resumeId: optionalText(value.resumeId),
     stageDates: validStageDates(value.stageDates, emptyStageDates()),
   };
 }
@@ -177,6 +181,7 @@ export function updateApplication(
     deadline: patch.deadline ?? existing.deadline,
     followUpDate: patch.followUpDate ?? existing.followUpDate,
     notes: patch.notes ?? existing.notes,
+    resumeId: patch.resumeId ?? existing.resumeId,
     stageDates: patch.stageDates,
   }, existing.stageDates ?? emptyStageDates());
 

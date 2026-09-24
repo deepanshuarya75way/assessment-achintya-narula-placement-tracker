@@ -53,6 +53,14 @@
           <article><strong id="stat-offers">0</strong><span>Offers</span></article>
         </div>
 
+        <section class="resume-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">RESUME VERSIONS</p><h2>Your resumes</h2></div>
+            <button id="new-resume-button" class="button button-primary" type="button">+ Create resume</button>
+          </div>
+          <div id="resume-list" class="resume-list"><p class="empty">No resume versions yet.</p></div>
+        </section>
+
         <div class="dashboard-grid">
           <section class="applications-panel">
             <div class="toolbar">
@@ -83,6 +91,7 @@
           <label>Application URL<input name="applicationUrl" type="url"></label>
           <label>Deadline<input name="deadline" type="date"></label>
           <label>Follow-up date<input name="followUpDate" type="date"></label>
+          <label>Resume version<select name="resumeId" id="application-resume"><option value="">No resume selected</option></select></label>
           <label class="span-two">Notes<textarea name="notes" rows="3" maxlength="1000"></textarea></label>
         </div>
         <fieldset class="dialog-section">
@@ -100,6 +109,40 @@
       </form>
     </dialog>
 
+    <dialog id="resume-dialog">
+      <form id="resume-form" method="dialog">
+        <div class="dialog-heading">
+          <div><p class="eyebrow" id="resume-dialog-eyebrow">NEW RESUME</p><h2 id="resume-dialog-title">Create resume</h2></div>
+          <button class="icon-button" id="close-resume-dialog" type="button" aria-label="Close">×</button>
+        </div>
+        <label>Resume name / title<input name="title" maxlength="120" required></label>
+        <label>Resume content<textarea name="content" rows="12" maxlength="20000" required placeholder="Add your resume content..."></textarea></label>
+        <section class="resume-preview-box">
+          <p class="eyebrow">PREVIEW</p>
+          <h3 id="resume-preview-title">Untitled resume</h3>
+          <div id="resume-preview-content" class="resume-preview-content">Start typing to preview your resume.</div>
+        </section>
+        <p id="resume-form-message" class="form-message" role="status"></p>
+        <div class="dialog-actions">
+          <button class="button button-quiet" id="cancel-resume-dialog" type="button">Cancel</button>
+          <button class="button button-primary" id="resume-submit" type="submit">Save resume</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="resume-template">
+      <article class="resume-card">
+        <div class="card-top">
+          <h3 class="resume-title"></h3>
+          <div class="card-actions">
+            <button class="button button-small button-quiet resume-edit-button" type="button">Edit</button>
+            <button class="button button-small button-danger resume-delete-button" type="button">Delete</button>
+          </div>
+        </div>
+        <div class="resume-content"></div>
+      </article>
+    </template>
+
     <template id="application-template">
       <article class="application-card">
         <div class="card-top"><div><h3 class="application-role"></h3><p class="application-company"></p></div><span class="status-pill"></span></div>
@@ -107,6 +150,7 @@
           <div><dt>Location</dt><dd class="application-location"></dd></div>
           <div class="date-field"><dt>Deadline</dt><dd class="application-deadline"></dd></div>
           <div class="date-field"><dt>Follow up</dt><dd class="application-followup"></dd></div>
+          <div><dt>Resume</dt><dd class="application-resume">Not selected</dd></div>
           <div class="date-field application-stage-date"><dt class="application-stage-label"></dt><dd class="application-stage-value"></dd></div>
         </dl>
         <p class="application-notes hidden"></p>
